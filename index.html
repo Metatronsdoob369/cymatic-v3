@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Universal Cymatic Superposition Engine (V3)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  body, html { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, monospace; color: #e2e8f0; }
+  canvas { display: block; width: 100vw; height: 100vh; object-fit: contain; background: #000; }
+  
+  #ui {
+    position: fixed; top: 16px; left: 16px; width: 350px;
+    background: rgba(6, 8, 12, 0.88); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 16px;
+    z-index: 10; transition: opacity 0.3s;
+  }
+  #ui.hidden { opacity: 0; pointer-events: none; }
+  h1 { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #fff; margin-bottom: 12px; display: flex; justify-content: space-between; }
+  h1 span { color: #00d2ff; font-size: 10px; }
+  .group { margin-bottom: 10px; }
+  label { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+  label b { color: #fff; }
+  input[type="range"] { width: 100%; height: 4px; appearance: none; background: rgba(255,255,255,0.15); border-radius: 2px; }
+  input[type="range"]::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; cursor: pointer; }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .btn-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+  button, .file-btn, select {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; padding: 7px 6px; border-radius: 5px; font-size: 11px; cursor: pointer; text-align: center;
+  }
+  button:hover, .file-btn:hover, select:hover { background: rgba(255,255,255,0.18); border-color: #00d2ff; }
+  button.active { background: #fff; color: #000; font-weight: bold; }
+  select { width: 100%; margin-bottom: 10px; background: #0b0e14; }
+  input[type="file"] { display: none; }
+  #harmonicsBar {
+    height: 28px; width: 100%; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; margin-bottom: 10px;
+    display: flex; align-items: flex-end; padding: 2px; gap: 2px;
+  }
+  .h-bar { flex: 1; background: #00d2ff; height: 10%; transition: height 0.05s; }
+  .hint { font-size: 10px; color: #64748b; text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<canvas id="glcanvas"></canvas>
+
+<div id="ui">
+  <h1>Universal Cymatics V3 <span>12-TONE SUPERPOSITION</span></h1>
+
+  <div class="btn-row-3">
+    <label class="file-btn">Load Audio<input type="file" id="audioUpload" accept="audio/*"></label>
+    <button id="micBtn">Live Mic In</button>
+    <button id="synthBtn">Multi-Tone Synth</button>
+  </div>
+
+  <div class="group">
+    <label>Universal Harmonic Chord Preset (Synth)</label>
+    <select id="chordSelect">
+      <option value="0">Pythagorean Tetractys (1 : 4/3 : 3/2 : 2) - Cross & Rose</option>
+      <option value="1">Golden Ratio Phi Cascade (1 : 1.618 : 2.618 : 4.236) - Star Mandala</option>
+      <option value="2">Cathedral Organ Overtone Series (1 : 2 : 3 : 4 : 5 : 6 : 8)</option>
+      <option value="3">Vedic / Solfeggio Triad (108Hz + 216Hz + 324Hz + 432Hz + 528Hz)</option>
+      <option value="4">Byzantine / Octagonal Symmetry (5 : 7 : 9 : 11 : 13)</option>
+      <option value="5">Slow Autonomous Harmonic Drift (Sleep Evolution)</option>
+    </select>
+  </div>
+
+  <div id="harmonicsBar" title="12 Active Simultaneous Wave Modes"></div>
+
+  <div class="btn-row">
+    <button id="playBtn" disabled>Play / Pause File</button>
+    <button id="recBtn">Record WebM</button>
+  </div>
+
+  <div class="group">
+    <label>Volume / Sensitivity (Agitation) <b id="valSens">1.25</b></label>
+    <input type="range" id="sensSlider" min="0.1" max="4.0" step="0.05" value="1.25">
+  </div>
+
+  <div class="group">
+    <label>Overtone Micro-Detail (Fine Filigree) <b id="valDetail">1.45</b></label>
+    <input type="range" id="detailSlider" min="0.2" max="3.0" step="0.05" value="1.45">
+  </div>
+
+  <div class="group">
+    <label>Spatial Frequency Scale (Pitch -> Rings) <b id="valScale">1.00</b></label>
+    <input type="range" id="scaleSlider" min="0.4" max="2.5" step="0.05" value="1.00">
+  </div>
+
+  <div class="group">
+    <label>Circular vs. Square Plate Boundary <b id="valRound">0.55</b></label>
+    <input type="range" id="roundSlider" min="0.0" max="1.0" step="0.05" value="0.55">
+  </div>
+
+  <div class="group">
+    <label>Particle Brightness <b id="valAlpha">0.12</b></label>
+    <input type="range" id="alphaSlider" min="0.03" max="0.35" step="0.01" value="0.12">
+  </div>
+
+  <div class="hint">Press <b>[H]</b> to hide UI • Supports File, Mic, or Built-in Multi-Tone</div>
+</div>
+
+<script>
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2', { antialias: false });
+if (!gl) alert('WebGL2 required');
+gl.getExtension('EXT_color_buffer_float');
+
+// 312x312 = 97,344 base particles * 8-fold symmetry = 778,752 micro-particles
+const P_SIZE = 312;
+const NUM_BASE = P_SIZE * P_SIZE;
+const NUM_MODES = 12; // 12 simultaneous acoustic wave modes
+
+// Build UI bars for the 12 active harmonic modes
+const hBarContainer = document.getElementById('harmonicsBar');
+const hBars = [];
+for (let i = 0; i < NUM_MODES; i++) {
+  const b = document.createElement('div');
+  b.className = 'h-bar';
+  hBarContainer.appendChild(b);
+  hBars.push(b);
+}
+
+let params = {
+  sens: 1.25,
+  detail: 1.45,
+  scale: 1.00,
+  round: 0.55,
+  alpha: 0.12
+};
+
+// 12 Active Acoustic Modes: each vec4 holds (n, m, amplitude, phase)
+const activeModes = new Float32Array(NUM_MODES * 4);
+const targetModes = new Float32Array(NUM_MODES * 4);
+let totalVolume = 0.25;
+
+// Initialize with a sacred geometry harmonic chord
+function setChordPreset(presetIdx, t = 0) {
+  const presets = [
+    // 0: Pythagorean Tetractys (Cross & Rose Window)
+    [[2,3,1.0], [3,4,0.85], [4,6,0.7], [6,8,0.55], [8,12,0.45], [9,12,0.35], [12,16,0.3], [16,24,0.25], [5,5,0.2], [7,7,0.15], [18,24,0.15], [24,32,0.1]],
+    // 1: Golden Ratio Phi Cascade (Star Mandala)
+    [[1.618,2.618,1.0], [2.618,4.236,0.85], [4.236,6.854,0.75], [6.854,11.09,0.6], [11.09,17.94,0.45], [2.618,6.854,0.4], [4.236,11.09,0.35], [1.618,6.854,0.3], [8.47,13.7,0.25], [13.7,22.18,0.2], [3.236,5.236,0.18], [5.236,8.472,0.15]],
+    // 2: Cathedral Organ Overtone Series
+    [[1,2,1.0], [2,4,0.8], [3,6,0.7], [4,8,0.6], [5,10,0.5], [6,12,0.45], [8,16,0.35], [3,5,0.4], [6,10,0.3], [9,15,0.25], [12,20,0.2], [16,28,0.15]],
+    // 3: Vedic / Solfeggio (108, 216, 324, 432, 528 ratios)
+    [[1.08,3.24,1.0], [2.16,4.32,0.9], [3.24,5.28,0.75], [4.32,8.64,0.65], [5.28,10.56,0.55], [6.48,12.96,0.45], [8.64,17.28,0.35], [1.08,5.28,0.3], [2.16,6.48,0.25], [4.32,12.96,0.2], [10.56,21.12,0.18], [12.96,25.92,0.15]],
+    // 4: Byzantine Octagonal Symmetry
+    [[5,7,1.0], [7,9,0.85], [9,11,0.7], [11,13,0.55], [5,9,0.5], [7,11,0.45], [9,13,0.35], [13,17,0.3], [15,21,0.25], [17,23,0.2], [19,25,0.15], [21,27,0.12]]
+  ];
+
+  if (presetIdx === 5) {
+    // Autonomous slow harmonic drift
+    for (let i = 0; i < NUM_MODES; i++) {
+      const harmonic = i + 1;
+      targetModes[i*4 + 0] = (1.5 + Math.sin(t * 0.07 + i * 0.6) * 1.2) * Math.sqrt(harmonic * 1.6);
+      targetModes[i*4 + 1] = (2.2 + Math.cos(t * 0.05 + i * 0.9) * 1.4) * Math.sqrt(harmonic * 1.6);
+      targetModes[i*4 + 2] = Math.pow(0.82, i);
+      targetModes[i*4 + 3] = (i % 2 === 0) ? 1.0 : -1.0;
+    }
+    return;
+  }
+
+  const p = presets[presetIdx] || presets[0];
+  for (let i = 0; i < NUM_MODES; i++) {
+    targetModes[i*4 + 0] = p[i][0];
+    targetModes[i*4 + 1] = p[i][1];
+    targetModes[i*4 + 2] = p[i][2];
+    targetModes[i*4 + 3] = (i % 2 === 0) ? 1.0 : -1.0;
+  }
+}
+setChordPreset(0);
+activeModes.set(targetModes);
+
+// --- SHADERS ---
+const QUAD_VS = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+// Physics Shader: Exact 12-Mode Acoustic Superposition + Circular/Square Boundary Coupling
+const SIM_FS = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_state;
+uniform vec4 u_modes[12]; // 12 simultaneous (n, m, amp, sign) harmonic modes
+uniform vec4 u_params;    // (vol, sens, detail, scale)
+uniform vec2 u_extra;     // (roundness, time)
+out vec4 outState;
+
+const float PI = 3.14159265359;
+
+vec2 hash23(vec3 p3) {
+  p3 = fract(p3 * vec3(.1031, .1030, .0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.xx + p3.yz) * p3.zy) * 2.0 - 1.0;
+}
+
+// Evaluates the multi-tonal cymatic wave heightfield at point p
+float evaluateCymaticField(vec2 p) {
+  // Enforce exact D4 dihedral symmetry in the standing wave field
+  vec2 sp = abs(p);
+  if (sp.x < sp.y) sp.xy = sp.yx;
+
+  float scale   = u_params.w;
+  float detail  = u_params.z;
+  float roundness = u_extra.x;
+
+  float r = length(sp);
+  float theta4 = atan(sp.y, sp.x + 1e-6) * 4.0; // 4-fold & 8-fold radial harmonic coupling
+
+  float totalWave = 0.0;
+  float norm = 0.0;
+
+  for (int i = 0; i < 12; i++) {
+    vec4 m = u_modes[i];
+    float amp = m.z;
+    if (amp < 0.01) continue;
+
+    // Boost higher overtones via 'detail' slider so fine micro-filigree is etched inside main nodes
+    float overtoneWeight = (i < 3) ? amp : amp * detail;
+    float nx = m.x * scale;
+    float my = m.y * scale;
+
+    // 1. Rectilinear Chladni Plate Mode: cos(n*pi*x)*cos(m*pi*y) +/- cos(m*pi*x)*cos(n*pi*y)
+    float rectMode = cos(nx * PI * sp.x) * cos(my * PI * sp.y) + m.w * cos(my * PI * sp.x) * cos(nx * PI * sp.y);
+
+    // 2. Circular / Faraday Liquid Vessel Mode (Bessel-like radial standing wave + angular petals)
+    float radialFreq = length(vec2(nx, my)) * PI * 0.85;
+    float angOrder = floor(abs(nx - my) * 0.5 + 1.0);
+    float circMode = cos(radialFreq * r) * cos(angOrder * theta4) / (1.0 + 1.2 * r);
+
+    // Blend between Square Plate and Circular Liquid Dish resonance
+    float w = mix(rectMode * 0.5, circMode, roundness);
+    totalWave += w * overtoneWeight;
+    norm += overtoneWeight;
+  }
+
+  return totalWave / max(norm, 0.001);
+}
+
+void main() {
+  vec4 st = texture(u_state, v_uv);
+  vec2 pos = st.xy;
+  vec2 vel = st.zw;
+
+  float vol  = u_params.x;
+  float sens = u_params.y;
+  float time = u_extra.y;
+
+  // Compute local acoustic potential energy E = |Psi(x,y)| and its spatial gradient
+  float eps = 0.0018; // Fine spatial derivative to resolve micro-overtone trenches
+  float w  = evaluateCymaticField(pos);
+  float wx = evaluateCymaticField(pos + vec2(eps, 0.0));
+  float wy = evaluateCymaticField(pos + vec2(0.0, eps));
+
+  // Particles are driven to zero-crossings (nodal lines where w == 0)
+  float E = abs(w);
+  vec2 gradE = vec2(abs(wx) - E, abs(wy) - E) / eps;
+
+  // Deterministic Chladni radiation force (pushes down gradient into razor-sharp nodal lines)
+  float force = (0.0014 + vol * 0.0045) * sens;
+  vel -= gradE * force;
+
+  // Acoustic vibration scatter:
+  // ONLY agitates particles sitting on loud antinodes (where E > 0).
+  // Once a particle drops into a true harmonic nodal trench (E ~ 0), it locks in cleanly!
+  vec2 rnd = hash23(vec3(v_uv * 312.0, time));
+  float antinodeScatter = (E * (0.005 + vol * 0.024) + 0.00028) * sens;
+  vel += rnd * antinodeScatter;
+
+  // Viscous liquid damping
+  vel *= 0.84;
+  pos += vel;
+
+  // Soft boundary containment
+  if (abs(pos.x) > 0.96 || abs(pos.y) > 0.96) {
+    pos = hash23(vec3(v_uv * 150.0, time + 7.0)) * 0.90;
+    vel *= 0.0;
+  }
+
+  outState = vec4(pos, vel);
+}`;
+
+// Render Shader: 8-Fold Symmetrical Sub-Pixel Point Cloud
+const RENDER_VS = `#version 300 es
+precision highp float;
+uniform sampler2D u_state;
+uniform int u_texSize;
+uniform vec2 u_aspect;
+out float v_speed;
+
+void main() {
+  int id = gl_VertexID >> 3;
+  int sym = gl_VertexID & 7;
+
+  ivec2 coord = ivec2(id % u_texSize, id / u_texSize);
+  vec4 st = texelFetch(u_state, coord, 0);
+
+  vec2 p = abs(st.xy);
+  if (p.x < p.y) p.xy = p.yx;
+
+  if ((sym & 1) != 0) p.xy = p.yx;
+  if ((sym & 2) != 0) p.x = -p.x;
+  if ((sym & 4) != 0) p.y = -p.y;
+
+  v_speed = length(st.zw);
+  gl_Position = vec4(p * u_aspect, 0.0, 1.0);
+  gl_PointSize = 1.0;
+}`;
+
+const RENDER_FS = `#version 300 es
+precision highp float;
+in float v_speed;
+uniform float u_alpha;
+out vec4 outColor;
+void main() {
+  // Particles locked into harmonic nodal lines glow crisp white; scattering particles form fine mist
+  float lock = clamp(1.0 - v_speed * 32.0, 0.18, 1.0);
+  float a = u_alpha * lock;
+  outColor = vec4(a, a, a, a);
+}`;
+
+function createProg(vs, fs) {
+  const p = gl.createProgram();
+  const s1 = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(s1, vs); gl.compileShader(s1);
+  if (!gl.getShaderParameter(s1, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s1));
+  const s2 = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(s2, fs); gl.compileShader(s2);
+  if (!gl.getShaderParameter(s2, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s2));
+  gl.attachShader(p, s1); gl.attachShader(p, s2); gl.linkProgram(p);
+  return p;
+}
+
+const simProg = createProg(QUAD_VS, SIM_FS);
+const renProg = createProg(RENDER_VS, RENDER_FS);
+
+const quadVAO = gl.createVertexArray();
+gl.bindVertexArray(quadVAO);
+const qb = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, qb);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+const emptyVAO = gl.createVertexArray();
+
+function makeTex(w, h, data) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function makeFBO(tex) {
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return f;
+}
+
+const initP = new Float32Array(NUM_BASE * 4);
+for (let i = 0; i < initP.length; i += 4) {
+  initP[i]   = (Math.random() * 2 - 1) * 0.94;
+  initP[i+1] = (Math.random() * 2 - 1) * 0.94;
+}
+let pTexA = makeTex(P_SIZE, P_SIZE, initP);
+let pTexB = makeTex(P_SIZE, P_SIZE, null);
+let pFboA = makeFBO(pTexA), pFboB = makeFBO(pTexB);
+
+// --- MULTI-TONE AUDIO ANALYSER (FILE + LIVE MIC + BUILT-IN SYNTH) ---
+let audioCtx, analyser, freqData, audioEl, micStream, destNode;
+let synthOscs = [];
+let modeSource = 'preset'; // 'preset', 'audio', 'mic'
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 4096; // High-res 4096 FFT to separate close multi-tone harmonics
+  analyser.smoothingTimeConstant = 0.82;
+  freqData = new Uint8Array(analyser.frequencyBinCount);
+  destNode = audioCtx.createMediaStreamDestination();
+}
+
+// Extract top 12 harmonic spectral peaks from live audio / multi-tone generator
+function extractAudioHarmonics() {
+  analyser.getByteFrequencyData(freqData);
+  const peaks = [];
+  let sum = 0;
+
+  // Scan local maxima across musical frequency bins (approx 45Hz to 6000Hz)
+  for (let i = 4; i < 560; i++) {
+    const v = freqData[i] / 255.0;
+    sum += v;
+    if (v > 0.05 && v >= freqData[i-1]/255.0 && v >= freqData[i+1]/255.0) {
+      peaks.push({ bin: i, amp: v });
+    }
+  }
+  peaks.sort((a, b) => b.amp - a.amp);
+  totalVolume = totalVolume * 0.85 + (sum / 556) * 0.15;
+
+  if (peaks.length === 0) return;
+  const fundBin = Math.max(peaks[0].bin, 4);
+
+  for (let i = 0; i < NUM_MODES; i++) {
+    if (i < peaks.length) {
+      const p = peaks[i];
+      // Convert frequency ratio relative to fundamental + octave log into spatial (n, m) wave numbers
+      const ratio = p.bin / fundBin;
+      const logPitch = Math.log2(p.bin / 4.0);
+      const n = 1.5 + (logPitch * 2.2) + (i % 3) * 0.75;
+      const m = n * (1.15 + (ratio % 1.75) * 0.65);
+
+      targetModes[i*4 + 0] = Math.min(n, 28.0);
+      targetModes[i*4 + 1] = Math.min(m, 28.0);
+      targetModes[i*4 + 2] = p.amp;
+      targetModes[i*4 + 3] = (p.bin % 2 === 0) ? 1.0 : -1.0;
+    } else {
+      targetModes[i*4 + 2] = 0.0;
+    }
+  }
+}
+
+// Audio File Upload
+document.getElementById('audioUpload').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  initAudio();
+  stopSynth();
+  if (audioEl) audioEl.pause();
+  audioEl = new Audio(URL.createObjectURL(file));
+  audioEl.loop = true;
+  const src = audioCtx.createMediaElementSource(audioEl);
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  analyser.connect(destNode);
+  audioEl.play();
+  modeSource = 'audio';
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('playBtn').textContent = 'Pause File';
+});
+
+document.getElementById('playBtn').addEventListener('click', (e) => {
+  if (!audioEl) return;
+  if (audioEl.paused) { audioEl.play(); e.target.textContent = 'Pause File'; modeSource = 'audio'; }
+  else { audioEl.pause(); e.target.textContent = 'Play File'; }
+});
+
+// Live Microphone Input (Play your external multi-tone generator directly into it!)
+const micBtn = document.getElementById('micBtn');
+micBtn.addEventListener('click', async () => {
+  initAudio();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  if (modeSource === 'mic') {
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    modeSource = 'preset';
+    micBtn.classList.remove('active');
+    return;
+  }
+  stopSynth();
+  if (audioEl) audioEl.pause();
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const micSrc = audioCtx.createMediaStreamSource(micStream);
+    micSrc.connect(analyser);
+    modeSource = 'mic';
+    micBtn.classList.add('active');
+  } catch (err) {
+    alert('Microphone access needed to listen to external tone generator.');
+  }
+});
+
+// Built-in Multi-Tone Harmonic Synth
+const synthBtn = document.getElementById('synthBtn');
+const chordSelect = document.getElementById('chordSelect');
+
+function stopSynth() {
+  synthOscs.forEach(o => { try { o.stop(); o.disconnect(); } catch(e){} });
+  synthOscs = [];
+  synthBtn.classList.remove('active');
+}
+
+function playSynthChord() {
+  if (!synthBtn.classList.contains('active')) return;
+  stopSynth();
+  synthBtn.classList.add('active');
+  const idx = parseInt(chordSelect.value, 10);
+  setChordPreset(idx);
+
+  const baseFreq = 108; // 108Hz sacred root
+  for (let i = 0; i < 6; i++) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const n = targetModes[i*4 + 0];
+    const m = targetModes[i*4 + 1];
+    const amp = targetModes[i*4 + 2];
+    osc.type = 'sine';
+    osc.frequency.value = baseFreq * (n * 0.35 + m * 0.25);
+    gain.gain.value = amp * 0.04;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    gain.connect(destNode);
+    osc.start();
+    synthOscs.push(osc);
+  }
+}
+
+synthBtn.addEventListener('click', () => {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (synthBtn.classList.contains('active')) {
+    stopSynth();
+  } else {
+    if (audioEl) audioEl.pause();
+    modeSource = 'preset';
+    micBtn.classList.remove('active');
+    synthBtn.classList.add('active');
+    playSynthChord();
+  }
+});
+
+chordSelect.addEventListener('change', (e) => {
+  modeSource = 'preset';
+  setChordPreset(parseInt(e.target.value, 10));
+  if (synthBtn.classList.contains('active')) playSynthChord();
+});
+
+function bind(id, vid, k) {
+  const el = document.getElementById(id), vel = document.getElementById(vid);
+  el.addEventListener('input', () => { params[k] = parseFloat(el.value); vel.textContent = el.value; });
+}
+bind('sensSlider', 'valSens', 'sens');
+bind('detailSlider', 'valDetail', 'detail');
+bind('scaleSlider', 'valScale', 'scale');
+bind('roundSlider', 'valRound', 'round');
+bind('alphaSlider', 'valAlpha', 'alpha');
+
+window.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() === 'h') document.getElementById('ui').classList.toggle('hidden');
+});
+
+// WebM Recorder
+let rec, chunks = [];
+document.getElementById('recBtn').addEventListener('click', (e) => {
+  if (rec && rec.state === 'recording') {
+    rec.stop(); e.target.classList.remove('active'); e.target.textContent = 'Record WebM'; return;
+  }
+  initAudio();
+  const stream = new MediaStream([...canvas.captureStream(60).getVideoTracks(), ...destNode.stream.getAudioTracks()]);
+  chunks = [];
+  rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 14000000 });
+  rec.ondataavailable = ev => { if (ev.data.size) chunks.push(ev.data); };
+  rec.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+    a.download = `cymatic-universal-${Date.now()}.webm`; a.click();
+  };
+  rec.start(1000); e.target.classList.add('active'); e.target.textContent = 'Stop & Save';
+});
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const uSimState = gl.getUniformLocation(simProg, 'u_state');
+const uSimModes = gl.getUniformLocation(simProg, 'u_modes');
+const uSimParams = gl.getUniformLocation(simProg, 'u_params');
+const uSimExtra = gl.getUniformLocation(simProg, 'u_extra');
+
+function loop(now) {
+  const t = now * 0.001;
+
+  if (modeSource === 'audio' || modeSource === 'mic') {
+    extractAudioHarmonics();
+  } else if (parseInt(chordSelect.value, 10) === 5) {
+    setChordPreset(5, t);
+  }
+
+  // Smoothly interpolate active 12 harmonic modes & update telemetry bars
+  for (let i = 0; i < NUM_MODES * 4; i++) {
+    activeModes[i] += (targetModes[i] - activeModes[i]) * 0.08;
+  }
+  for (let i = 0; i < NUM_MODES; i++) {
+    hBars[i].style.height = `${Math.min(100, Math.round(activeModes[i*4 + 2] * 100))}%`;
+  }
+
+  // 1. Update Particle Physics (12-Wave Superposition)
+  gl.bindFramebuffer(gl.FRAMEBUFFER, pFboB);
+  gl.viewport(0, 0, P_SIZE, P_SIZE);
+  gl.disable(gl.BLEND);
+  gl.useProgram(simProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, pTexA);
+  gl.uniform1i(uSimState, 0);
+  gl.uniform4fv(uSimModes, activeModes);
+  gl.uniform4f(uSimParams, totalVolume, params.sens, params.detail, params.scale);
+  gl.uniform2f(uSimExtra, params.round, t);
+  gl.bindVertexArray(quadVAO);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // 2. Render 778,752 Symmetrical Micro-Particles
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.useProgram(renProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, pTexB);
+  gl.uniform1i(gl.getUniformLocation(renProg, 'u_state'), 0);
+  gl.uniform1i(gl.getUniformLocation(renProg, 'u_texSize'), P_SIZE);
+  const asp = canvas.width / canvas.height;
+  gl.uniform2f(gl.getUniformLocation(renProg, 'u_aspect'), asp > 1 ? 1/asp : 1, asp > 1 ? 1 : asp);
+  gl.uniform1f(gl.getUniformLocation(renProg, 'u_alpha'), params.alpha);
+  gl.bindVertexArray(emptyVAO);
+  gl.drawArrays(gl.POINTS, 0, NUM_BASE * 8);
+
+  [pTexA, pTexB] = [pTexB, pTexA];
+  [pFboA, pFboB] = [pFboB, pFboA];
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
